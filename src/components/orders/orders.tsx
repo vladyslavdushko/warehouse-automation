@@ -4,25 +4,24 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { OrderTable } from "./order-table";
+import { OrdersTable } from "./orders-table";
 import { CreateOrderDialog } from "./create-order-dialog";
-import { useDatabase } from "@/hooks/useDatabase";
-import { STORE_NAMES } from "@/lib/db/schema";
 
 export function Orders() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const { db, isLoading: dbLoading } = useDatabase();
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
-      if (!db) return [];
-      return await db.getAll(STORE_NAMES.ORDERS);
+      const response = await fetch('/api/orders');
+      if (!response.ok) {
+        throw new Error('Failed to fetch orders');
+      }
+      return response.json();
     },
-    enabled: !!db,
   });
 
-  if (dbLoading || isLoading) {
+  if (isLoading) {
     return <div>Loading...</div>;
   }
 
@@ -36,7 +35,7 @@ export function Orders() {
         </Button>
       </div>
 
-      <OrderTable orders={orders || []} />
+      <OrdersTable orders={orders || []} />
 
       <CreateOrderDialog
         open={isCreateDialogOpen}

@@ -32,6 +32,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
+          console.log("Missing credentials");
           return null;
         }
 
@@ -41,12 +42,14 @@ export const authOptions: NextAuthOptions = {
                         .get(credentials.email) as DatabaseUser | undefined;
 
           if (!user) {
+            console.log("User not found:", credentials.email);
             return null;
           }
 
           // Verify password
           const isValid = await compare(credentials.password, user.password_hash);
           if (!isValid) {
+            console.log("Invalid password for user:", credentials.email);
             return null;
           }
 
@@ -87,5 +90,6 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: "your-super-secret-key-here-make-it-long-and-random",
+  debug: true, // Enable debug mode
 }; 

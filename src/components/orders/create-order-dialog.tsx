@@ -12,8 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useDatabase } from "@/hooks/useDatabase";
-import { STORE_NAMES } from "@/lib/db/schema";
 
 interface CreateOrderDialogProps {
   open: boolean;
@@ -24,21 +22,26 @@ export function CreateOrderDialog({ open, onOpenChange }: CreateOrderDialogProps
   const [customerName, setCustomerName] = useState("");
   const [totalAmount, setTotalAmount] = useState("");
   const queryClient = useQueryClient();
-  const { db } = useDatabase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!db) return;
 
     try {
-      await db.add(STORE_NAMES.ORDERS, {
-        id: crypto.randomUUID(),
-        customerName,
-        status: "pending",
-        totalAmount: parseFloat(totalAmount),
-        createdAt: new Date(),
-        items: [],
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customer: customerName,
+          total_amount: parseFloat(totalAmount),
+          status: 'PENDING',
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to create order');
+      }
 
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       onOpenChange(false);

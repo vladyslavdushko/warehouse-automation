@@ -71,6 +71,25 @@ db.exec(`
     FOREIGN KEY (order_id) REFERENCES orders(id),
     FOREIGN KEY (product_id) REFERENCES products(id)
   );
+
+  CREATE TABLE IF NOT EXISTS warehouse_zones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS warehouse_locations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    zone_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    row INTEGER NOT NULL,
+    column INTEGER NOT NULL,
+    max_capacity INTEGER NOT NULL,
+    current_capacity INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (zone_id) REFERENCES warehouse_zones(id)
+  );
 `);
 
 export default db;

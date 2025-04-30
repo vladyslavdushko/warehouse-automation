@@ -1,8 +1,15 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { Order } from "@/lib/db/schema";
 import { DataTable } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
+
+interface Order {
+  id: number;
+  customer: string;
+  status: "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED";
+  total_amount: number;
+  created_at: string;
+}
 
 const columns: ColumnDef<Order>[] = [
   {
@@ -10,7 +17,7 @@ const columns: ColumnDef<Order>[] = [
     header: "Order ID",
   },
   {
-    accessorKey: "customerName",
+    accessorKey: "customer",
     header: "Customer",
   },
   {
@@ -19,28 +26,28 @@ const columns: ColumnDef<Order>[] = [
     cell: ({ row }) => {
       const status = row.getValue("status") as Order["status"];
       const variant = {
-        pending: "secondary",
-        processing: "warning",
-        completed: "success",
-        cancelled: "destructive",
+        PENDING: "secondary" as const,
+        PROCESSING: "warning" as const,
+        COMPLETED: "success" as const,
+        CANCELLED: "destructive" as const,
       }[status];
       
       return <Badge variant={variant}>{status}</Badge>;
     },
   },
   {
-    accessorKey: "totalAmount",
+    accessorKey: "total_amount",
     header: "Total Amount",
     cell: ({ row }) => {
-      const amount = row.getValue("totalAmount") as number;
+      const amount = row.getValue("total_amount") as number;
       return `$${amount.toFixed(2)}`;
     },
   },
   {
-    accessorKey: "createdAt",
+    accessorKey: "created_at",
     header: "Created At",
     cell: ({ row }) => {
-      const date = row.getValue("createdAt") as Date;
+      const date = new Date(row.getValue("created_at"));
       return format(date, "MMM d, yyyy HH:mm");
     },
   },

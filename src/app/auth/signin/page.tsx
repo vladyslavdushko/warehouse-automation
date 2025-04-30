@@ -28,15 +28,19 @@ export default function SignInPage() {
       });
 
       if (result?.error) {
+        console.error("Sign in error:", result.error);
         setError("Invalid email or password");
+        setIsLoading(false);
         return;
       }
 
-      router.push("/");
-      router.refresh();
+      if (result?.ok) {
+        router.push("/");
+        router.refresh();
+      }
     } catch (error) {
+      console.error("Sign in error:", error);
       setError("An error occurred. Please try again.");
-    } finally {
       setIsLoading(false);
     }
   };

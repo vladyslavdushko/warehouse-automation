@@ -1,3 +1,5 @@
+import { Database } from "better-sqlite3";
+
 export interface User {
   id: string;
   name?: string;
@@ -52,6 +54,24 @@ export interface OrderItem {
   price: number;
 }
 
+export interface WarehouseZone {
+  id: number;
+  name: string;
+  description: string;
+  created_at: string;
+}
+
+export interface WarehouseLocation {
+  id: number;
+  zone_id: number;
+  name: string;
+  row: number;
+  column: number;
+  max_capacity: number;
+  current_capacity: number;
+  created_at: string;
+}
+
 // Store names
 export const STORE_NAMES = {
   USERS: 'users',
@@ -59,4 +79,35 @@ export const STORE_NAMES = {
   TRANSACTIONS: 'transactions',
   WAREHOUSE_LAYOUT: 'warehouseLayout',
   ORDERS: 'orders',
-} as const; 
+} as const;
+
+export function createTables(db: Database) {
+  // ... existing tables ...
+
+  // Create warehouse zones table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS warehouse_zones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create warehouse locations table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS warehouse_locations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      zone_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      row INTEGER NOT NULL,
+      column INTEGER NOT NULL,
+      max_capacity INTEGER NOT NULL,
+      current_capacity INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (zone_id) REFERENCES warehouse_zones(id)
+    )
+  `);
+
+  // ... existing code ...
+} 
