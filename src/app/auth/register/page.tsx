@@ -6,10 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
-import { useDatabase } from "@/hooks/useDatabase";
-import { hash } from "bcryptjs";
 import { signIn } from "next-auth/react";
-import { STORE_NAMES } from "@/lib/db/schema";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -19,7 +16,6 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { db } = useDatabase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,38 +28,29 @@ export default function RegisterPage() {
       return;
     }
 
-    if (!db) {
-      setError("Database not initialized");
-      setIsLoading(false);
-      return;
-    }
-
     try {
-      // Check if user already exists
-      const existingUser = await db.get(STORE_NAMES.USERS, email);
-      if (existingUser) {
-        setError("Email already registered");
-        setIsLoading(false);
-        return;
-      }
-
-      // Hash password
-      const hashedPassword = await hash(password, 10);
-      const userId = crypto.randomUUID();
-
       // Create new user
-      await db.add(STORE_NAMES.USERS, {
-        id: userId,
-        name,
-        email,
-        password: hashedPassword,
-        createdAt: new Date(),
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name,
+          email,
+          password, // Send plain password, let server handle hashing
+        }),
       });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Registration failed');
+      }
 
       // Sign in the user
       const result = await signIn("credentials", {
         email,
-        password,
+        password, // Use the same plain password for sign in
         redirect: false,
         callbackUrl: "/",
       });
@@ -80,7 +67,7 @@ export default function RegisterPage() {
       router.refresh();
     } catch (error) {
       console.error("Registration error:", error);
-      setError("An error occurred during registration");
+      setError(error instanceof Error ? error.message : "An error occurred during registration");
       setIsLoading(false);
     }
   };
