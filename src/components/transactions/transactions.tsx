@@ -1,8 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { db } from "@/lib/db";
-import { inventoryMovements } from "@/lib/schema";
+import { useDatabase } from "@/hooks/useDatabase";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 interface Transaction {
   id: string;
@@ -15,15 +15,18 @@ interface Transaction {
 }
 
 export function Transactions() {
+  const { db, isLoading: dbLoading } = useDatabase();
+
   const { data: transactions, isLoading } = useQuery({
     queryKey: ["transactions"],
     queryFn: async () => {
-      const result = await db.select().from(inventoryMovements);
-      return result as Transaction[];
+      if (!db) return [];
+      return await db.getAll('inventoryMovements');
     },
+    enabled: !!db,
   });
 
-  if (isLoading) {
+  if (dbLoading || isLoading) {
     return <div>Loading...</div>;
   }
 

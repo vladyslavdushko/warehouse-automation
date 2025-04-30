@@ -6,28 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { OrderTable } from "./order-table";
 import { CreateOrderDialog } from "./create-order-dialog";
-import { db } from "@/lib/db";
+import { useDatabase } from "@/hooks/useDatabase";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 export function Orders() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const { db, isLoading: dbLoading } = useDatabase();
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: async () => {
-      const result = await db.query.orders.findMany({
-        with: {
-          items: {
-            with: {
-              product: true,
-            },
-          },
-        },
-      });
-      return result;
+      if (!db) return [];
+      return await db.getAll(STORE_NAMES.ORDERS);
     },
+    enabled: !!db,
   });
 
-  if (isLoading) {
+  if (dbLoading || isLoading) {
     return <div>Loading...</div>;
   }
 

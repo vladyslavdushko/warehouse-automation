@@ -1,36 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { db } from "@/lib/db";
-
-const formSchema = z.object({
-  sku: z.string().min(1, "SKU is required"),
-  name: z.string().min(1, "Name is required"),
-  description: z.string().optional(),
-  quantity: z.number().min(0, "Quantity must be 0 or greater"),
-  reorderThreshold: z.number().min(0, "Reorder threshold must be 0 or greater"),
-  location: z.string().optional(),
-});
+import { Label } from "@/components/ui/label";
+import { useDatabase } from "@/hooks/useDatabase";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 interface AddProductDialogProps {
   open: boolean;
@@ -38,43 +21,45 @@ interface AddProductDialogProps {
 }
 
 export function AddProductDialog({ open, onOpenChange }: AddProductDialogProps) {
+  const [name, setName] = useState("");
+  const [sku, setSku] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [reorderThreshold, setReorderThreshold] = useState("");
+  const [location, setLocation] = useState("");
   const queryClient = useQueryClient();
-  const [isLoading, setIsLoading] = useState(false);
+  const { db } = useDatabase();
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      sku: "",
-      name: "",
-      description: "",
-      quantity: 0,
-      reorderThreshold: 10,
-      location: "",
-    },
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
 
-  const mutation = useMutation({
-    mutationFn: async (values: z.infer<typeof formSchema>) => {
-      await db.insert(products).values({
-        id: crypto.randomUUID(),
-        ...values,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-      form.reset();
-      onOpenChange(false);
-    },
-  });
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
     try {
-      await mutation.mutateAsync(values);
-    } finally {
-      setIsLoading(false);
+      await db.add(STORE_NAMES.PRODUCTS, {
+        id: crypto.randomUUID(),
+        sku,
+        name,
+        quantity: parseInt(quantity),
+        reorderThreshold: parseInt(reorderThreshold),
+        location,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error adding product:", error);
     }
-  }
+  };
+
+  const resetForm = () => {
+    setName("");
+    setSku("");
+    setQuantity("");
+    setReorderThreshold("");
+    setLocation("");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -82,101 +67,59 @@ export function AddProductDialog({ open, onOpenChange }: AddProductDialogProps) 
         <DialogHeader>
           <DialogTitle>Add New Product</DialogTitle>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="sku"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>SKU</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter SKU" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter product name" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter description" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantity</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Enter quantity"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="reorderThreshold"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reorder Threshold</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="Enter reorder threshold"
-                      {...field}
-                      onChange={(e) => field.onChange(Number(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Enter location" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Product"}
-            </Button>
-          </form>
-        </Form>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="name">Product Name</Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="sku">SKU</Label>
+              <Input
+                id="sku"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="reorderThreshold">Reorder Threshold</Label>
+              <Input
+                id="reorderThreshold"
+                type="number"
+                value={reorderThreshold}
+                onChange={(e) => setReorderThreshold(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button type="submit">Add Product</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

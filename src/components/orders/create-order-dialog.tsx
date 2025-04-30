@@ -1,116 +1,56 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import * as z from "zod";
+import { useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { db } from "@/lib/db";
-
-const formSchema = z.object({
-  items: z.array(
-    z.object({
-      productId: z.string(),
-      quantity: z.number().min(1, "Quantity must be at least 1"),
-    })
-  ),
-});
+import { Label } from "@/components/ui/label";
+import { useDatabase } from "@/hooks/useDatabase";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 interface CreateOrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function CreateOrderDialog({
-  open,
-  onOpenChange,
-}: CreateOrderDialogProps) {
+export function CreateOrderDialog({ open, onOpenChange }: CreateOrderDialogProps) {
+  const [customerName, setCustomerName] = useState("");
+  const [totalAmount, setTotalAmount] = useState("");
   const queryClient = useQueryClient();
-  const [isLoading, setIsLoading] = useState(false);
-  const [items, setItems] = useState<{ productId: string; quantity: number }[]>(
-    []
-  );
+  const { db } = useDatabase();
 
-  const { data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: async () => {
-      const result = await db.query.products.findMany();
-      return result;
-    },
-  });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!db) return;
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      items: [],
-    },
-  });
-
-  const mutation = useMutation({
-    mutationFn: async (values: z.infer<typeof formSchema>) => {
-      const orderId = crypto.randomUUID();
-      await db.transaction(async (tx) => {
-        await tx.insert(orders).values({
-          id: orderId,
-          status: "PENDING",
-          createdAt: new Date(),
-        });
-
-        for (const item of values.items) {
-          await tx.insert(orderItems).values({
-            id: crypto.randomUUID(),
-            orderId,
-            productId: item.productId,
-            quantity: item.quantity,
-          });
-        }
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      form.reset();
-      setItems([]);
-      onOpenChange(false);
-    },
-  });
-
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
     try {
-      await mutation.mutateAsync(values);
-    } finally {
-      setIsLoading(false);
+      await db.add(STORE_NAMES.ORDERS, {
+        id: crypto.randomUUID(),
+        customerName,
+        status: "pending",
+        totalAmount: parseFloat(totalAmount),
+        createdAt: new Date(),
+        items: [],
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      onOpenChange(false);
+      resetForm();
+    } catch (error) {
+      console.error("Error creating order:", error);
     }
-  }
-
-  const addItem = () => {
-    setItems([...items, { productId: "", quantity: 1 }]);
   };
 
-  const removeItem = (index: number) => {
-    setItems(items.filter((_, i) => i !== index));
-  };
-
-  const updateItem = (index: number, field: "productId" | "quantity", value: string | number) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
+  const resetForm = () => {
+    setCustomerName("");
+    setTotalAmount("");
   };
 
   return (
@@ -119,79 +59,33 @@ export function CreateOrderDialog({
         <DialogHeader>
           <DialogTitle>Create New Order</DialogTitle>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-4">
-              {items.map((item, index) => (
-                <div key={index} className="flex gap-4 items-end">
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.productId`}
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormLabel>Product</FormLabel>
-                        <FormControl>
-                          <select
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            value={item.productId}
-                            onChange={(e) =>
-                              updateItem(index, "productId", e.target.value)
-                            }
-                          >
-                            <option value="">Select a product</option>
-                            {products?.map((product) => (
-                              <option key={product.id} value={product.id}>
-                                {product.name} ({product.sku})
-                              </option>
-                            ))}
-                          </select>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name={`items.${index}.quantity`}
-                    render={({ field }) => (
-                      <FormItem className="w-32">
-                        <FormLabel>Quantity</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              updateItem(
-                                index,
-                                "quantity",
-                                parseInt(e.target.value)
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => removeItem(index)}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              ))}
-              <Button type="button" onClick={addItem}>
-                Add Item
-              </Button>
+        <form onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="customerName">Customer Name</Label>
+              <Input
+                id="customerName"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                required
+              />
             </div>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Creating..." : "Create Order"}
-            </Button>
-          </form>
-        </Form>
+            <div>
+              <Label htmlFor="totalAmount">Total Amount</Label>
+              <Input
+                id="totalAmount"
+                type="number"
+                step="0.01"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter className="mt-6">
+            <Button type="submit">Create Order</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

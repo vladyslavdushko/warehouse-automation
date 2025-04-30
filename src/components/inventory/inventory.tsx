@@ -6,20 +6,23 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { ProductTable } from "./product-table";
 import { AddProductDialog } from "./add-product-dialog";
-import { db } from "@/lib/db";
+import { useDatabase } from "@/hooks/useDatabase";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 export function Inventory() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const { db, isLoading: dbLoading } = useDatabase();
 
   const { data: products, isLoading } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const result = await db.query.products.findMany();
-      return result;
+      if (!db) return [];
+      return await db.getAll(STORE_NAMES.PRODUCTS);
     },
+    enabled: !!db,
   });
 
-  if (isLoading) {
+  if (dbLoading || isLoading) {
     return <div>Loading...</div>;
   }
 

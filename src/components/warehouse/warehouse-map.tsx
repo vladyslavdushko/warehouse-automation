@@ -1,105 +1,87 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { db } from "@/lib/db";
+import { useDatabase } from "@/hooks/useDatabase";
 import { useMemo } from "react";
+import { STORE_NAMES } from "@/lib/db/schema";
 
 interface WarehouseLayout {
   id: string;
   name: string;
-  coordinates: string;
-  type: "SHELF" | "AISLE" | "ENTRY" | "EXIT";
-  capacity: number;
+  coordinates: { x: number; y: number };
+  type: 'SHELF' | 'AISLE' | 'ENTRY' | 'EXIT';
+  capacity: number | null;
   currentLoad: number;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  locationId: string;
+}
+
+const typeColors = {
+  SHELF: "bg-blue-200",
+  AISLE: "bg-gray-200",
+  ENTRY: "bg-green-200",
+  EXIT: "bg-red-200",
+} as const;
+
 export function WarehouseMap() {
-  const { data: layout, isLoading } = useQuery({
+  const { db, isLoading: dbLoading } = useDatabase();
+
+  const { data: layouts, isLoading } = useQuery({
     queryKey: ["warehouseLayout"],
     queryFn: async () => {
-      const result = await db.query.warehouseLayout.findMany();
-      return result;
+      if (!db) return [];
+      return await db.getAll(STORE_NAMES.WAREHOUSE_LAYOUT) as WarehouseLayout[];
     },
+    enabled: !!db,
   });
 
   const { data: products } = useQuery({
     queryKey: ["products"],
     queryFn: async () => {
-      const result = await db.query.products.findMany();
-      return result;
+      if (!db) return [];
+      return await db.getAll(STORE_NAMES.PRODUCTS) as Product[];
     },
+    enabled: !!db,
   });
 
   const layoutWithProducts = useMemo(() => {
-    if (!layout || !products) return [];
-    return layout.map((item) => {
-      const coordinates = JSON.parse(item.coordinates);
+    if (!layouts || !products) return [];
+    return layouts.map((item: WarehouseLayout) => {
       const productsInLocation = products.filter(
-        (product) => product.location === item.id
+        (product: Product) => product.locationId === item.id
       );
       return {
         ...item,
-        coordinates,
         products: productsInLocation,
       };
     });
-  }, [layout, products]);
+  }, [layouts, products]);
 
-  if (isLoading) {
-    return <div>Loading warehouse layout...</div>;
+  if (dbLoading || isLoading) {
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">Warehouse Layout</h1>
-      <div className="relative w-full h-[600px] border rounded-lg overflow-hidden">
-        {layoutWithProducts.map((item) => {
-          const { x, y } = item.coordinates;
-          const color = {
-            SHELF: "bg-blue-500",
-            AISLE: "bg-gray-300",
-            ENTRY: "bg-green-500",
-            EXIT: "bg-red-500",
-          }[item.type];
-
-          return (
-            <div
-              key={item.id}
-              className={`absolute ${color} rounded-md p-2 text-white text-sm`}
-              style={{
-                left: `${x}%`,
-                top: `${y}%`,
-                transform: "translate(-50%, -50%)",
-              }}
-            >
-              <div className="font-bold">{item.name}</div>
-              {item.type === "SHELF" && (
-                <div className="text-xs">
-                  {item.products.length} / {item.capacity} items
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex gap-4">
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-blue-500 rounded"></div>
-          <span>Shelf</span>
+    <div className="grid grid-cols-10 gap-1 p-4">
+      {layoutWithProducts.map((item: WarehouseLayout & { products: Product[] }) => (
+        <div
+          key={item.id}
+          className={`p-2 rounded ${typeColors[item.type]} relative`}
+          style={{
+            gridColumn: item.coordinates.x + 1,
+            gridRow: item.coordinates.y + 1,
+          }}
+        >
+          <div className="text-sm font-medium">{item.name}</div>
+          <div className="text-xs">
+            {item.products.length} items
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-gray-300 rounded"></div>
-          <span>Aisle</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-green-500 rounded"></div>
-          <span>Entry</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-4 h-4 bg-red-500 rounded"></div>
-          <span>Exit</span>
-        </div>
-      </div>
+      ))}
     </div>
   );
 } 

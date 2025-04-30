@@ -1,51 +1,61 @@
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import Database from "better-sqlite3";
-import { sql } from "drizzle-orm";
-import * as schema from "./schema";
+import { openDB } from 'idb';
+import { STORE_NAMES } from './schema';
 
-const sqlite = new Database("warehouse.db");
-export const db = drizzle(sqlite, { schema });
+export const db = await openDB('warehouse-db', 1, {
+  upgrade(db) {
+    // Users store
+    const usersStore = db.createObjectStore(STORE_NAMES.USERS, { keyPath: 'id' });
+    usersStore.createIndex('email', 'email', { unique: true });
+    
+    // Products store
+    const productsStore = db.createObjectStore(STORE_NAMES.PRODUCTS, { keyPath: 'id' });
+    productsStore.createIndex('sku', 'sku', { unique: true });
+    productsStore.createIndex('location', 'location');
+    
+    // Transactions store
+    const transactionsStore = db.createObjectStore(STORE_NAMES.TRANSACTIONS, { keyPath: 'id' });
+    transactionsStore.createIndex('productId', 'productId');
+    transactionsStore.createIndex('timestamp', 'timestamp');
+    
+    // Warehouse layout store
+    const warehouseLayoutStore = db.createObjectStore(STORE_NAMES.WAREHOUSE_LAYOUT, { keyPath: 'id' });
+    warehouseLayoutStore.createIndex('type', 'type');
+  },
+});
 
-// Initialize database with tables if they don't exist
-export async function initializeDatabase() {
-  await db.run(sql`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      name TEXT,
-      email TEXT UNIQUE,
-      emailVerified INTEGER,
-      image TEXT
-    );
-    
-    CREATE TABLE IF NOT EXISTS products (
-      id TEXT PRIMARY KEY,
-      sku TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      description TEXT,
-      quantity INTEGER NOT NULL DEFAULT 0,
-      reorderThreshold INTEGER NOT NULL DEFAULT 10,
-      location TEXT,
-      createdAt INTEGER DEFAULT CURRENT_TIMESTAMP,
-      updatedAt INTEGER DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE TABLE IF NOT EXISTS transactions (
-      id TEXT PRIMARY KEY,
-      productId TEXT NOT NULL,
-      type TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      timestamp INTEGER DEFAULT CURRENT_TIMESTAMP,
-      notes TEXT,
-      FOREIGN KEY (productId) REFERENCES products(id)
-    );
-    
-    CREATE TABLE IF NOT EXISTS warehouseLayout (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      coordinates TEXT NOT NULL,
-      type TEXT NOT NULL,
-      capacity INTEGER,
-      currentLoad INTEGER DEFAULT 0
-    );
-  `);
+// Helper functions for database operations
+export async function addUser(user: any) {
+  return await db.add(STORE_NAMES.USERS, user);
+}
+
+export async function getUserByEmail(email: string) {
+  return await db.getFromIndex(STORE_NAMES.USERS, 'email', email);
+}
+
+export async function addProduct(product: any) {
+  return await db.add(STORE_NAMES.PRODUCTS, product);
+}
+
+export async function getProductBySku(sku: string) {
+  return await db.getFromIndex(STORE_NAMES.PRODUCTS, 'sku', sku);
+}
+
+export async function getProductsByLocation(location: string) {
+  return await db.getAllFromIndex(STORE_NAMES.PRODUCTS, 'location', location);
+}
+
+export async function addTransaction(transaction: any) {
+  return await db.add(STORE_NAMES.TRANSACTIONS, transaction);
+}
+
+export async function getTransactionsByProductId(productId: string) {
+  return await db.getAllFromIndex(STORE_NAMES.TRANSACTIONS, 'productId', productId);
+}
+
+export async function addWarehouseLayout(layout: any) {
+  return await db.add(STORE_NAMES.WAREHOUSE_LAYOUT, layout);
+}
+
+export async function getWarehouseLayoutByType(type: string) {
+  return await db.getAllFromIndex(STORE_NAMES.WAREHOUSE_LAYOUT, 'type', type);
 } 

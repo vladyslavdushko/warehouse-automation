@@ -1,17 +1,28 @@
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { NextAuthOptions } from "next-auth";
-import { db } from "./db";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
+import db from "./db/server";
+
+interface DatabaseUser {
+  id: number;
+  email: string;
+  password_hash: string;
+  name: string | null;
+}
+
+declare module "next-auth" {
+  interface User {
+    id: string;
+    name?: string;
+    email: string;
+  }
+
+  interface Session {
+    user: User;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
-  adapter: DrizzleAdapter(db),
-  session: {
-    strategy: "jwt",
-  },
-  pages: {
-    signIn: "/auth/signin",
-  },
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -24,36 +35,47 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = await db.query.users.findFirst({
-          where: (users, { eq }) => eq(users.email, credentials.email),
-        });
+        try {
+          // Get user from SQLite database
+          const user = db.prepare('SELECT id, email, password_hash, name FROM users WHERE email = ?')
+                        .get(credentials.email) as DatabaseUser | undefined;
 
-        if (!user || !user.password) {
+          if (!user) {
+            return null;
+          }
+
+          // Verify password
+          const isValid = await compare(credentials.password, user.password_hash);
+          if (!isValid) {
+            return null;
+          }
+
+          // Return user data without password
+          return {
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name || undefined,
+          };
+        } catch (error) {
+          console.error("Auth error:", error);
           return null;
         }
-
-        const isPasswordValid = await compare(credentials.password, user.password);
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
       },
     }),
   ],
+  session: {
+    strategy: "jwt",
+  },
+  pages: {
+    signIn: "/auth/signin",
+  },
   callbacks: {
     async session({ token, session }) {
-      if (token) {
-        session.user.id = token.id;
-        session.user.name = token.name;
-        session.user.email = token.email;
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
       }
-
       return session;
     },
     async jwt({ token, user }) {
@@ -62,8 +84,8 @@ export const authOptions: NextAuthOptions = {
         token.name = user.name;
         token.email = user.email;
       }
-
       return token;
     },
   },
+  secret: process.env.NEXTAUTH_SECRET,
 }; 
